@@ -25,4 +25,4 @@ Directions
 2. Select if you would like to display the results on the screen or save them to your desktop.
 3. Pick the "old" revision PDF file.
 4. Pick the "new" revision PDF file.
-5. Your results will be shown on the screen or a JPEG will be written to the desktop. The program will highlight items that were added in cyan and the items that were removed in red.
+5. Your results will be shown on the screen or a JPEG will be written to the desktop. 
