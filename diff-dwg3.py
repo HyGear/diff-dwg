@@ -14,6 +14,7 @@ from tkinter import messagebox
 from tkinter import ttk
 import tkinter.filedialog as tk
 from wand.image import Image as WImage
+from wand.color import Color as Color
 from PIL import Image
 import timeit,os,numpy,threading
 
@@ -33,6 +34,7 @@ _ident = [[1, 0, 0],
 true_anaglyph = ([_magic, _zero, _zero], [_zero, _zero, _magic])
 gray_anaglyph = ([_magic, _zero, _zero], [_zero, _magic, _magic])
 color_anaglyph = ([_ident[0], _zero, _zero], [_zero, _ident[1], _ident[2]])
+color2_anaglyph = ([[1, 0, 0],[0,0,0],[0,0,0.603922]],[[0,0,0],[0,1,0],[0,0,0.396078]])
 half_color_anaglyph = ([_magic, _zero, _zero], [_zero, _ident[1], _ident[2]])
 optimized_anaglyph = ([[0, 0.7, 0.3], _zero, _zero], [_zero, _ident[1], _ident[2]])
 methods = [true_anaglyph, gray_anaglyph, color_anaglyph, half_color_anaglyph, optimized_anaglyph]
@@ -49,7 +51,7 @@ class DiffApp(Frame):
         v = StringVar()
         v.set("1")
         Radiobutton(self, text = "Display on Screen", variable=v, value="1").grid(row = 0, column = 0, sticky = W)
-        Radiobutton(self, text = "Save JPG to Desktop", variable=v, value="2").grid(row = 1, column = 0, sticky = W)
+        Radiobutton(self, text = "Save PNG to Desktop", variable=v, value="2").grid(row = 1, column = 0, sticky = W)
         Button(self, text = "OK", command = self.fileselect).grid(row = 2, column = 0, sticky = S)
 
     def fileselect(self):
@@ -91,23 +93,25 @@ def pdf2jpg(pdf,temp):
     pdf = str(pdf)
     base = os.path.basename(pdf)
     basefile = os.path.splitext(base)
-    jpg = temp + basefile[0] + ".jpg"
+    png = temp + basefile[0] + ".png"
     #jpg = str(jpg.replace("\\","\\\\"))
-    jpg = str(jpg)
+    png = str(png)
     pdf = str(pdf)
-    with WImage(filename=pdf, resolution=200) as img:
+    with WImage(filename=pdf, resolution=400) as img:
+        img.background_color=Color('white')
+        img.alpha_channel='remove'
         img.depth=24
-        img.save(filename=jpg)
+        img.save(filename=png)
     #img = PMImage()
     #img.density('200')
     #img.depth(24)
     #img.read(pdf)
     #img.write(jpg)    
-    #img = Image.open(jpg)
-    #rgbimg = Image.new("RGBA", img.size)
-    #rgbimg.paste(img)
-    #rgbimg.save(jpg)
-    return jpg
+    img = Image.open(png)
+    rgbimg = Image.new("RGB", img.size)
+    rgbimg.paste(img)
+    rgbimg.save(png)
+    return png
 
 def maketmp(temp):
     if (not os.path.isdir(temp)):
@@ -142,7 +146,7 @@ def process_images():
         
         if v.get() == "1":
             dispimg = tempdir + file_string
-            anaglyph(im1, im2, half_color_anaglyph).save(dispimg, quality=90)
+            anaglyph(im1, im2, color2_anaglyph).save(dispimg, quality=90)
             #win.quit()
             #Launch Windows Photo Viewer to view image
             #os.system("rundll32 \"C:\Program Files\Windows Photo Viewer\PhotoViewer.dll\", ImageView_Fullscreen %s" % dispimg)
@@ -154,7 +158,7 @@ def process_images():
             userhome = os.path.expanduser('~')
             desktop = userhome + '\\Desktop\\'
             dispimg = desktop + file_string
-            anaglyph(im1, im2, half_color_anaglyph).save(dispimg, quality=90)
+            anaglyph(im1, im2, color2_anaglyph).save(dispimg, quality=90)
             #win.quit()
     else:
         print("Drawing size mismatch.")
@@ -198,15 +202,15 @@ def Main():
     app = DiffApp(master=root)
     app.mainloop()
     maketmp(tempdir)
-    win = Tk()
-    win.wm_title("Processing images")
+    #win = Tk()
+    #win.wm_title("Processing images")
     process_images()
-    #t1=threading.Thread(target=process_images, args=(win,))
+    #t1=threading.Thread(target=process_images) #, args=(win,))
     #t1.start()
     #progress(win)  # This will block while the mainloop runs
     #t1.join()
     #Clean up windows/files and show messages to user
-    win.destroy()
+    #win.destroy()
     if v.get() == "2" and size_check != 1:
         complete_msg("Image Complete", "Image complete. Please check your desktop")    
     if size_check == 1:
