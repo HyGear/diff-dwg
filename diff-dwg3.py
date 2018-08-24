@@ -1,7 +1,7 @@
 """
 diff-dwg-new.py: Compare two engineering drawings in PDF format and output a diff image.
 This script makes use of a anaglyph algorithm to compare two PDF drawing files. The files
-are first converted to JPG format, then the JPG files are processed. The output file is
+are first converted to PNG format, then the PNG files are processed. The output file is
 a composite of the two input files with deleted pixels highlighted in red and new pixels
 highlighted in blue.
 This script is composed from snippets from online sources:
@@ -11,18 +11,35 @@ Progresse Bar: http://stackoverflow.com/questions/25202147/tkinter-progressbar-w
 
 from tkinter import *
 from tkinter import messagebox
-from tkinter import ttk
+#from tkinter import ttk
 import tkinter.filedialog as tk
+import timeit,os,numpy #threading
+#Setting some environment variables so ImageMagick and GS portable will load correctly.
+#These are only needed if compiling with PyInstaller.
+#os.environ['PATH'] = os.environ['PATH'] + ';C:\\diff-dwg3\\gs\\gs9.21\\bin\\;C:\\diff-dwg3\\ImageMagick-6.9.10-Q16\\bin\\'
+#os.environ['MAGICK_HOME'] = os.path.abspath('C:\\diff-dwg3\\ImageMagick-6.9.10-Q16\\')
+#os.environ['MAGICK_CODER_MODULE_PATH'] = 'C:\\diff-dwg3\\ImageMagick-6.9.10-Q16\\modules\\coders\\;C:\\diff-dwg3\\gs\\gs9.21\\bin\\'
+#os.environ['MAGICK_CONFIGURE_PATH'] = 'C:\\diff-dwg3\\ImageMagick-6.9.10-Q16\\'
+#os.environ['MAGICK_CODER_FILTER_PATH'] = 'C:\\diff-dwg3\\ImageMagick-6.9.10-Q16\\modules\\filters\\'
+#os.environ['LD_LIBRARY_PATH'] = "C:\\\diff-dwg3\\ImageMagick-6.9.10-Q16"
+#os.environ['GS'] = 'C:\\diff-dwg3\\gs\\gs9.21\\bin\\gswin64.exe'
+#os.environ['GSC'] = 'C:\\diff-dwg3\\gs\\gs9.21\\bin\\gswin64c.exe'
+#os.environ['GS_DLL'] = 'C:\\diff-dwg3\\gs\\gs9.21\\bin\\gsdll64.dll'
+#os.environ['GS_LIB'] = 'C:\\diff-dwg3\\gs\\gs9.21\\lib\\'
 from wand.image import Image as WImage
 from wand.color import Color as Color
 from PIL import Image
-import timeit,os,numpy,threading
+from sys import platform
 
 import subprocess
 
 global tempdir,size_check
-#Change this if needed
-tempdir = 'c:\\temp\\diff-dwg\\'
+#Setting a temporary directory. Change this if needed
+#FIXME: Need to clean-up directory when done.
+if platform == "win32":
+    tempdir = 'c:\\temp\\diff-dwg\\'
+else:
+    tempdir = '/tmp/diff-dwg/'						  
 size_check = 0
 #Anaglyph matrices
 _magic = [0.299, 0.587, 0.114]
@@ -46,13 +63,21 @@ class DiffApp(Frame):
     def __init__(self, master):
         Frame.__init__(self,master)
         self.grid()
-        self.master.title("diff-dwg")
-        global v
+        self.master.title("diff-dwg - Drawing Comparison")
+        global v,v_status,v_status_f
         v = StringVar()
         v.set("1")
-        Radiobutton(self, text = "Display on Screen", variable=v, value="1").grid(row = 0, column = 0, sticky = W)
-        Radiobutton(self, text = "Save PNG to Desktop", variable=v, value="2").grid(row = 1, column = 0, sticky = W)
-        Button(self, text = "OK", command = self.fileselect).grid(row = 2, column = 0, sticky = S)
+        v_status = StringVar()
+        v_status_f = StringVar()
+        v_status.set("Ready...")
+        v_status_f.set("Please select files.")
+        self.grid_columnconfigure(0,minsize=350)
+        self.pack(padx=10,pady=10)
+        Radiobutton(self, text = "Display on Screen", variable=v, value="1").grid(row = 0, column = 0, sticky = S)
+        Radiobutton(self, text = "Save PNG to Desktop", variable=v, value="2").grid(row = 1, column = 0, sticky = S)
+        Button(self, text = "OK", command = self.fileselect).grid(row = 2, column = 0, sticky = S, padx=5,pady=5)
+        status_lower=Message(self, textvariable=v_status_f,bd=1, relief=SUNKEN, anchor=W, width=330, font=('arial',8)).grid(row=3, column=0, sticky='WE')
+        status=Label(self, textvariable=v_status, bd=1, relief=SUNKEN, anchor=W).grid(row=4, column=0, sticky='WE')																									 
 
     def fileselect(self):
         #Create a set of variables to pass back to main program.
@@ -60,53 +85,50 @@ class DiffApp(Frame):
         global filePath2 
         filePath1 = ""
         filePath2 = ""
-        #self.master.destroy()
-        #root = Tkinter.Tk()
-        self.master.withdraw()
+        #self.master.withdraw()
         status_1 = 0
         status_2 = 0
         while filePath1 == "":
             if status_1 == 1:
                 error_msg("Error","Please select a valid file.")
             filePath1 = tk.askopenfilename(title="Open First PDF (Old Drawing)")
-            filePath1 = filePath1.replace("/","\\\\")
+            if platform == "win32":					   
+                filePath1 = filePath1.replace("/","\\\\")
             status_1 = 1
         
         while filePath2 == "":
             if status_2 == 1:
                 error_msg("Error","Please select a valid file.")
             filePath2 = tk.askopenfilename(title="Open Second PDF (New Drawing)")
-            filePath2 = filePath2.replace("/","\\\\")
+            if platform == "win32":					   
+                filePath2 = filePath2.replace("/","\\\\")
             status_2 = 1
-        
         print ("Old Drawing: "+filePath1+"\n")  #Display first filepath
         print ("New Drawing: "+filePath2+"\n")  #Display second filepath
+        #self.master.deiconify()
+        v_status.set("Processing images...")
+        v_status_f.set("Old Drawing:\n"+filePath1+"\n"+"New Drawing:\n"+filePath2)
+        self.update_idletasks()
+        maketmp(tempdir)
+        process_images()
         self.master.destroy()
-#A class to display the image created
-
+        
 
 #Helper functions
-#FIXME: need to rewrite to use WAND
-def pdf2jpg(pdf,temp):
-    #Generate the path for the jpg file. Need to use a temp directory in case
+def pdf2png(pdf,temp):
+    #Generate the path for the png file. Need to use a temp directory in case
     #pdf location is read only.
     pdf = str(pdf)
     base = os.path.basename(pdf)
     basefile = os.path.splitext(base)
     png = temp + basefile[0] + ".png"
-    #jpg = str(jpg.replace("\\","\\\\"))
     png = str(png)
     pdf = str(pdf)
-    with WImage(filename=pdf, resolution=400) as img:
+    with WImage(filename=pdf, resolution=200) as img:
         img.background_color=Color('white')
         img.alpha_channel='remove'
         img.depth=24
-        img.save(filename=png)
-    #img = PMImage()
-    #img.density('200')
-    #img.depth(24)
-    #img.read(pdf)
-    #img.write(jpg)    
+        img.save(filename=png)  
     img = Image.open(png)
     rgbimg = Image.new("RGB", img.size)
     rgbimg.paste(img)
@@ -137,39 +159,42 @@ def process_images():
     #FIXME: Compare images to make sure they are the same size.
     global filePath1, filePath2, v, size_check
     start = timeit.default_timer()
-    img1_file = pdf2jpg(filePath1, tempdir)
-    img2_file = pdf2jpg(filePath2, tempdir)
+    img1_file = pdf2png(filePath1, tempdir)
+    img2_file = pdf2png(filePath2, tempdir)
     im1, im2 = Image.open(img2_file), Image.open(img1_file)
-    file_string = os.path.splitext(os.path.basename(filePath1))[0] + "-diff.jpg"
+    file_string = os.path.splitext(os.path.basename(filePath1))[0] + "-diff.png"
     if im1.size[0] == im2.size[0] and im1.size[1] == im2.size[1]:
         print("Drawing sizes match")
         
         if v.get() == "1":
             dispimg = tempdir + file_string
             anaglyph(im1, im2, color2_anaglyph).save(dispimg, quality=90)
-            #win.quit()
-            #Launch Windows Photo Viewer to view image
-            #os.system("rundll32 \"C:\Program Files\Windows Photo Viewer\PhotoViewer.dll\", ImageView_Fullscreen %s" % dispimg)
-            substring="rundll32 \"C:\Program Files\Windows Photo Viewer\PhotoViewer.dll\", ImageView_Fullscreen %s" % dispimg
+            if platform == "win32":
+                substring="rundll32 \"C:\Program Files\Windows Photo Viewer\PhotoViewer.dll\", ImageView_Fullscreen %s" % dispimg
+            else:
+                substring="eog %s" % dispimg
             subprocess.call(substring,shell=True)
             #Clean up after ourselves.
             os.remove(dispimg)
         else:
             userhome = os.path.expanduser('~')
-            desktop = userhome + '\\Desktop\\'
+            if platform == "win32":
+                desktop = userhome + '\\Desktop\\'
+            else:
+                desktop = userhome + '/Desktop/'
             dispimg = desktop + file_string
             anaglyph(im1, im2, color2_anaglyph).save(dispimg, quality=90)
-            #win.quit()
     else:
         print("Drawing size mismatch.")
+        #FIXME: Add a message window that drawings do not match and recall the main command window.
         size_check = 1        
-        #win.quit()
     del im1,im2
     os.remove(img1_file)
     os.remove(img2_file)
     stop = timeit.default_timer()
     print("Run time was", stop - start)
     print("Done")
+   # self.master.destroy()
         
     
 def complete_msg(s1,s2):
@@ -187,13 +212,13 @@ def error_msg(s1,s2):
     return True
 
     
-def progress(win):
-    ft = ttk.Frame()
-    ft.pack(expand=True, fill=BOTH, side=TOP)
-    pb_hD = ttk.Progressbar(ft, length=200, orient='horizontal', mode='indeterminate')
-    pb_hD.pack(expand=True, fill=BOTH, side=TOP)
-    pb_hD.start(50)
-    win.mainloop()
+#def progress(win):
+#    ft = ttk.Frame()
+#    ft.pack(expand=True, fill=BOTH, side=TOP)
+#    pb_hD = ttk.Progressbar(ft, length=200, orient='horizontal', mode='indeterminate')
+#    pb_hD.pack(expand=True, fill=BOTH, side=TOP)
+#    pb_hD.start(50)
+#    win.mainloop()
     
 def Main():
     global v
@@ -201,16 +226,6 @@ def Main():
     root.wm_title("Choose images")
     app = DiffApp(master=root)
     app.mainloop()
-    maketmp(tempdir)
-    #win = Tk()
-    #win.wm_title("Processing images")
-    process_images()
-    #t1=threading.Thread(target=process_images) #, args=(win,))
-    #t1.start()
-    #progress(win)  # This will block while the mainloop runs
-    #t1.join()
-    #Clean up windows/files and show messages to user
-    #win.destroy()
     if v.get() == "2" and size_check != 1:
         complete_msg("Image Complete", "Image complete. Please check your desktop")    
     if size_check == 1:
