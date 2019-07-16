@@ -206,6 +206,9 @@ def process_batch():
     oldfiles = [f for f in listdir(olddir) if isfile(join(olddir,f))]
     newfiles = [n for n in listdir(newdir) if isfile(join(newdir,n))]
     pattern=re.compile('^([a-zA-Z])+')
+    # The loop below attempts to match part numbers in the old folder and new folder. This is done
+    # by dropping the first and last character and anything after an underscore. This tends to
+    # find a match for most part numbering schemes.
     for old_f in oldfiles:
         if old_f[-3:] == "pdf":
             trim_old=find_char(old_f,"_")
@@ -240,7 +243,7 @@ def process_batch():
                             dispimg = tempdir + "\\\\" + file_string
                             anaglyph(im1, im2, color2_anaglyph).save(dispimg, quality=90)
                             waterimg = diffdir + "\\\\" + file_string
-                            watermark_text(dispimg,waterimg,"UNCONTROLLED COPY - NOT FOR PRODUCTION. DRAWING IS FOR REFERENCE ONLY.\nSUPPLIER IS RESPONSIBLE FOR MANUFACTURING PARTS TO CURRENT DRAWING REVISION",pos=(0, 0))
+                            watermark_text(dispimg,waterimg,"UNCONTROLLED COPY",pos=(0, 0))
                         else:
                             print("Drawing size mismatch.")
                             size_check = 1        
