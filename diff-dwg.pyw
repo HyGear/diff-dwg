@@ -35,7 +35,7 @@ _zero = [0, 0, 0]
 _ident = [[1, 0, 0],
           [0, 1, 0],
           [0, 0, 1]]
-          
+
 true_anaglyph = ([_magic, _zero, _zero], [_zero, _zero, _magic])
 gray_anaglyph = ([_magic, _zero, _zero], [_zero, _magic, _magic])
 color_anaglyph = ([_ident[0], _zero, _zero], [_zero, _ident[1], _ident[2]])
@@ -62,12 +62,12 @@ class DiffApp(Frame):
         Radiobutton(self, text = "Batch Drawing Comparison", variable=v, value="2").grid(row = 1, column = 0, sticky = S)
         Button(self, text = "START", command = self.fileselect).grid(row = 2, column = 0, sticky = S, padx=5,pady=5)
         status_lower=Message(self, textvariable=v_status_f,bd=1, relief=SUNKEN, anchor=W, width=330, font=('arial',8)).grid(row=3, column=0, sticky='WE')
-        status=Label(self, textvariable=v_status, bd=1, relief=SUNKEN, anchor=W).grid(row=4, column=0, sticky='WE')																									 
+        status=Label(self, textvariable=v_status, bd=1, relief=SUNKEN, anchor=W).grid(row=4, column=0, sticky='WE')
 
     def fileselect(self):
         #Create a set of variables to pass back to main program.
         global filePath1
-        global filePath2 
+        global filePath2
         global filePath3
         global tempdir,olddir,newdir,diffdir,watermark
         filePath1 = ""
@@ -80,6 +80,7 @@ class DiffApp(Frame):
         while filePath1 == "":
             if status_1 == 1 and v.get() == "1":
                 error_msg("Error", "Please select a valid file.")
+                return
             elif status_1 == 1 and v.get() == "2":
                 error_msg("Error", "Please select a valid directory.")
             elif status_1 == 0 and v.get() == "1":
@@ -89,14 +90,15 @@ class DiffApp(Frame):
             else:
                 error_msg("Error", "Uh oh. Something broke.")
                 status_1=1
-            if platform == "win32":					   
+            if platform == "win32":
                 filePath1 = filePath1.replace("/","\\\\")
                 olddir=filePath1
             status_1 = 1
-        
+
         while filePath2 == "":
             if status_2 == 1 and v.get() == "1":
                 error_msg("Error", "Please select a valid file.")
+                return
             elif status_2 == 1 and v.get() == "2":
                 error_msg("Error", "Please select a valid directory.")
             elif status_2 == 0 and v.get() == "1":
@@ -106,11 +108,11 @@ class DiffApp(Frame):
             else:
                 error_msg("Error", "Uh oh. Something broke.")
                 status_2=1
-            if platform == "win32":					   
+            if platform == "win32":
                 filePath2 = filePath2.replace("/","\\\\")
                 newdir=filePath2
             status_2 = 1
-            
+
         while filePath3 == "":
             if status_3 == 1:
                 error_msg("Error", "Please select a valid directory.")
@@ -119,7 +121,7 @@ class DiffApp(Frame):
                 filePath3 = filePath3.replace("/","\\\\")
                 diffdir=filePath3
             status_3 = 1
-            
+
         print ("Old Drawing Path: "+filePath1+"\n")  #Display first filepath
         print ("New Drawing Path: "+filePath2+"\n")  #Display second filepath
         print ("DIFF Drawing Path: "+filePath3+"\n")
@@ -134,7 +136,7 @@ class DiffApp(Frame):
             maketmp(tempdir)
             process_batch()
         self.master.destroy()
-        
+
 def pdf2png(pdf,temp):
     #Generate the path for the png file. Need to use a temp directory in case
     #pdf location is read only.
@@ -159,7 +161,7 @@ def maketmp(temp):
     if (not os.path.isdir(temp)):
         print("We need to make %s directory" % temp)
         os.system("mkdir %s" % temp)
-       
+
 def anaglyph(image1, image2, method=true_anaglyph):
     m1, m2 = [numpy.array(m).transpose() for m in method]
     im1, im2 = image_to_array(image1), image_to_array(image2)
@@ -246,7 +248,7 @@ def process_batch():
                             watermark_text(dispimg,waterimg,"UNCONTROLLED COPY",pos=(0, 0))
                         else:
                             print("Drawing size mismatch.")
-                            size_check = 1        
+                            size_check = 1
                         del im1,im2
                         try:
                             os.remove(img1_file)
@@ -254,11 +256,11 @@ def process_batch():
                             os.remove(dispimg)
                         except:
                             print("Error while deleting temp files. Please check ", tempdir)
-                        
+
     stop = timeit.default_timer()
     print("Run time was", stop - start)
     print("Done")
-    
+
 def process_images():
     global filePath1, filePath2, v, size_check
     start = timeit.default_timer()
@@ -276,14 +278,14 @@ def process_images():
         anaglyph(im1, im2, color2_anaglyph).save(dispimg, quality=90)
     else:
         print("Drawing size mismatch.")
-        size_check = 1        
+        size_check = 1
     del im1,im2
     os.remove(img1_file)
     os.remove(img2_file)
     stop = timeit.default_timer()
     print("Run time was", stop - start)
     print("Done")
-    
+
 def complete_msg(s1,s2):
     msg = Tk()
     msg.withdraw()
@@ -296,7 +298,7 @@ def error_msg(s1,s2):
     emsg.withdraw()
     messagebox.showerror(s1,s2)
     emsg.destroy()
-    return True    
+    return True
 
 def Main():
     global v
@@ -305,10 +307,10 @@ def Main():
     app = DiffApp(master=root)
     app.mainloop()
     if v.get() == "2" and size_check != 1:
-        complete_msg("Image Complete", "Image complete. Please check %s" % diffdir)    
+        complete_msg("Image Complete", "Image complete. Please check %s" % diffdir)
     if size_check == 1:
         error_msg("Drawing Error","A temp drawing failed to delete or there was a size mismatch. Please check output results.")
 
-    
+
 if __name__=='__main__':
     Main()
