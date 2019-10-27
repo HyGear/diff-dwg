@@ -19,6 +19,8 @@ Requirements
 2. Python Image Library (PIL)
 3. Numpy
 
+Use `pip install -r requirements.txt` to install the packages.
+
 Directions
 ==========
 1. Launch the script with "python diff-dwg.pyw"
