@@ -11,6 +11,7 @@ Anaglyph Algorithm: https://mail.python.org/pipermail/python-list/2006-May/39273
 from tkinter import *
 from tkinter import messagebox
 import tkinter.filedialog as tk
+import tempfile
 import fitz
 import timeit,os,numpy
 from PIL import Image
@@ -22,10 +23,12 @@ from os import listdir
 import re
 
 global tempdir,olddir,newdir,diffdir,watermark
-tempdir = 'c:\\temp\\diff-dwg\\'
-olddir = 'c:\\temp\\old\\'
-newdir = 'c:\\temp\\new\\'
-diffdir = 'c:\\temp\\diff\\'
+os_temp_dir = tempfile.gettempdir()
+
+tempdir = join(os_temp_dir, 'diff-dwg')
+olddir = join(os_temp_dir, 'old')
+newdir = join(os_temp_dir, 'new')
+diffdir = join(os_temp_dir, 'diff')
 
 size_check = 0
 
@@ -120,6 +123,8 @@ class DiffApp(Frame):
             if platform == "win32":
                 filePath3 = filePath3.replace("/","\\\\")
                 diffdir=filePath3
+            else:
+                diffdir = filePath3
             status_3 = 1
 
         print ("Old Drawing Path: "+filePath1+"\n")  #Display first filepath
@@ -143,9 +148,7 @@ def pdf2png(pdf,temp):
     pdf = str(pdf)
     base = os.path.basename(pdf)
     basefile = os.path.splitext(base)
-    png = temp + basefile[0] + ".png"
-    png = str(png)
-    pdf = str(pdf)
+    png = join(temp, basefile[0] + ".png")
     print(pdf)
     print(png)
     doc = fitz.open(pdf)
@@ -183,7 +186,10 @@ def watermark_text(input_image_path,
     photo = Image.open(input_image_path)
     drawing = ImageDraw.Draw(photo)
     red = (255, 0, 0)
-    font = ImageFont.truetype("C:\\Windows\\Fonts\\Calibri.ttf", 30)
+    if platform == 'win32':
+        font = ImageFont.truetype("C:\\Windows\\Fonts\\Calibri.ttf", 30)
+    elif platform == 'linux':
+        font = ImageFont.load_default()
     drawing.text(pos, text, fill=red, font=font)
     photo.save(output_image_path)
 
@@ -233,8 +239,8 @@ def process_batch():
                         print("Name match found")
                         print("New file: ",new_f)
                         print("Old file: ",old_f)
-                        filePath1 = olddir + "\\\\" + old_f
-                        filePath2 = newdir + "\\\\" + new_f
+                        filePath1 = join(olddir, old_f)
+                        filePath2 = join(newdir, new_f)
                         print(filePath1)
                         img1_file = pdf2png(filePath1, tempdir)
                         img2_file = pdf2png(filePath2, tempdir)
@@ -242,9 +248,9 @@ def process_batch():
                         file_string = os.path.splitext(os.path.basename(new_f))[0] + "-diff.png"
                         if im1.size[0] == im2.size[0] and im1.size[1] == im2.size[1]:
                             print("Drawing sizes match")
-                            dispimg = tempdir + "\\\\" + file_string
+                            dispimg = join(tempdir, file_string)
                             anaglyph(im1, im2, color2_anaglyph).save(dispimg, quality=90)
-                            waterimg = diffdir + "\\\\" + file_string
+                            waterimg = join(diffdir, file_string)
                             watermark_text(dispimg,waterimg,"UNCONTROLLED COPY",pos=(0, 0))
                         else:
                             print("Drawing size mismatch.")
@@ -270,12 +276,13 @@ def process_images():
     file_string = os.path.splitext(os.path.basename(filePath1))[0] + "-diff.png"
     if im1.size[0] == im2.size[0] and im1.size[1] == im2.size[1]:
         print("Drawing sizes match")
-        dispimg = diffdir + "\\\\" + file_string
+        dispimg = join(diffdir, file_string)
         print(newdir)
         print(olddir)
         print(diffdir)
         print(dispimg)
         anaglyph(im1, im2, color2_anaglyph).save(dispimg, quality=90)
+        watermark_text(dispimg, dispimg, "UNCONTROLLED COPY", pos=(0, 0))
     else:
         print("Drawing size mismatch.")
         size_check = 1
