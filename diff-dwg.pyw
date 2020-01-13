@@ -20,12 +20,18 @@ from sys import platform
 from os.path import isfile, join
 from os import listdir
 import re
+import math
+import cv2
 
 global tempdir,olddir,newdir,diffdir,watermark
-tempdir = 'c:\\temp\\diff-dwg\\'
-olddir = 'c:\\temp\\old\\'
-newdir = 'c:\\temp\\new\\'
-diffdir = 'c:\\temp\\diff\\'
+
+if platform == "win32":
+    tempdir = 'c:\\temp\\diff-dwg'
+else:
+    tempdir = '/tmp/diff-dwg'
+olddir = ''
+newdir = ''
+diffdir = ''
 
 size_check = 0
 
@@ -58,8 +64,8 @@ class DiffApp(Frame):
         v_status_f.set("Please select directories to compare.")
         self.grid_columnconfigure(0,minsize=350)
         self.pack(padx=10,pady=10)
-        Radiobutton(self, text = "Single Drawing Comparison", variable=v, value="1").grid(row = 0, column = 0, sticky = S)
-        Radiobutton(self, text = "Batch Drawing Comparison", variable=v, value="2").grid(row = 1, column = 0, sticky = S)
+        Radiobutton(self, text = "Single Drawing Comparison", variable=v, value="1", fg='black').grid(row = 0, column = 0, sticky = S)
+        Radiobutton(self, text = "Batch Drawing Comparison", variable=v, value="2", fg='black').grid(row = 1, column = 0, sticky = S)
         Button(self, text = "START", command = self.fileselect).grid(row = 2, column = 0, sticky = S, padx=5,pady=5)
         status_lower=Message(self, textvariable=v_status_f,bd=1, relief=SUNKEN, anchor=W, width=330, font=('arial',8)).grid(row=3, column=0, sticky='WE')
         status=Label(self, textvariable=v_status, bd=1, relief=SUNKEN, anchor=W).grid(row=4, column=0, sticky='WE')
@@ -120,6 +126,8 @@ class DiffApp(Frame):
             if platform == "win32":
                 filePath3 = filePath3.replace("/","\\\\")
                 diffdir=filePath3
+            else:
+                diffdir=filePath3
             status_3 = 1
 
         print ("Old Drawing Path: "+filePath1+"\n")  #Display first filepath
@@ -146,8 +154,8 @@ def pdf2png(pdf,temp):
     png = temp + basefile[0] + ".png"
     png = str(png)
     pdf = str(pdf)
-    print(pdf)
-    print(png)
+    #print(pdf)
+    #print(png)
     doc = fitz.open(pdf)
     xres=2
     yres=2
@@ -157,6 +165,115 @@ def pdf2png(pdf,temp):
         pix.writePNG(png)
     return png
 
+def alignimage(align1,align2):
+    img1 = cv2.imread(align1)
+    img2 = cv2.imread(align2)
+
+    #Find the corner points of img1
+    h1,w1,c=img1.shape
+    gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    gray1 = numpy.float32(gray1)
+    dst1 = cv2.cornerHarris(gray1,5,3,0.04)
+    ret1, dst1 = cv2.threshold(dst1,0.1*dst1.max(),255,0)
+    dst1 = numpy.uint8(dst1)
+    ret1, labels1, stats1, centroids1 = cv2.connectedComponentsWithStats(dst1)
+    criteria1 = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
+    corners1 = cv2.cornerSubPix(gray1,numpy.float32(centroids1),(5,5),(-1,-1),criteria1)
+
+    #Find the corner points of img2
+    h2,w2,c=img2.shape
+    gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    gray2 = numpy.float32(gray2)
+    dst2 = cv2.cornerHarris(gray2,5,3,0.04)
+    ret2, dst2 = cv2.threshold(dst2,0.1*dst2.max(),255,0)
+    dst2 = numpy.uint8(dst2)
+    ret2, labels2, stats2, centroids2 = cv2.connectedComponentsWithStats(dst2)
+    criteria2 = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
+    corners2 = cv2.cornerSubPix(gray2,numpy.float32(centroids2),(5,5),(-1,-1),criteria2)
+
+
+    #Find the top left, top right, and bottom left outer corners of the drawing frame for img1
+    a1=[0,0]
+    b1=[w1,0]
+    c1=[0,h1]
+    a1_dist=[]
+    b1_dist=[]
+    c1_dist=[]
+    for i in corners1:
+        temp_a1=math.sqrt((i[0]-a1[0])**2+(i[1]-a1[1])**2)
+        temp_b1=math.sqrt((i[0]-b1[0])**2+(i[1]-b1[1])**2)
+        temp_c1=math.sqrt((i[0]-c1[0])**2+(i[1]-c1[1])**2)
+        a1_dist.append(temp_a1)
+        b1_dist.append(temp_b1)
+        c1_dist.append(temp_c1)
+
+    #print("Image #1 (reference):")
+    #print("Top Left:")
+    #print(corners1[a1_dist.index(min(a1_dist))])
+    #print("Top Right:")
+    #print(corners1[b1_dist.index(min(b1_dist))])
+    #print("Bottom Left:")
+    #print(corners1[c1_dist.index(min(c1_dist))])
+
+    #Find the top left, top right, and bottom left outer corners of the drawing frame for img2
+    a2=[0,0]
+    b2=[w2,0]
+    c2=[0,h2]
+    a2_dist=[]
+    b2_dist=[]
+    c2_dist=[]
+    for i in corners2:
+        temp_a2=math.sqrt((i[0]-a2[0])**2+(i[1]-a2[1])**2)
+        temp_b2=math.sqrt((i[0]-b2[0])**2+(i[1]-b2[1])**2)
+        temp_c2=math.sqrt((i[0]-c2[0])**2+(i[1]-c2[1])**2)
+        a2_dist.append(temp_a2)
+        b2_dist.append(temp_b2)
+        c2_dist.append(temp_c2)
+
+    #print("Image #2 (image to align):")
+    #print("Top Left:")
+    #print(corners2[a2_dist.index(min(a2_dist))])
+    #print("Top Right:")
+    #print(corners2[b2_dist.index(min(b2_dist))])
+    #print("Bottom Left:")
+    #print(corners2[c2_dist.index(min(c2_dist))])
+
+    #Create the points for img1
+    point1 = numpy.zeros((3,2), dtype=numpy.float32)
+    point1[0][0]=corners1[a1_dist.index(min(a1_dist))][0]
+    point1[0][1]=corners1[a1_dist.index(min(a1_dist))][1]
+    point1[1][0]=corners1[b1_dist.index(min(b1_dist))][0]
+    point1[1][1]=corners1[b1_dist.index(min(b1_dist))][1]
+    point1[2][0]=corners1[c1_dist.index(min(c1_dist))][0]
+    point1[2][1]=corners1[c1_dist.index(min(c1_dist))][1]
+
+    #Create the points for img2
+    point2 = numpy.zeros((3,2), dtype=numpy.float32)
+    point2[0][0]=corners2[a2_dist.index(min(a2_dist))][0]
+    point2[0][1]=corners2[a2_dist.index(min(a2_dist))][1]
+    point2[1][0]=corners2[b2_dist.index(min(b2_dist))][0]
+    point2[1][1]=corners2[b2_dist.index(min(b2_dist))][1]
+    point2[2][0]=corners2[c2_dist.index(min(c2_dist))][0]
+    point2[2][1]=corners2[c2_dist.index(min(c2_dist))][1]
+
+    #Make sure points look ok:
+    #print(point1)
+    #print(point2)
+
+    #Transform the image
+    m = cv2.getAffineTransform(point2,point1)
+    image2Reg = cv2.warpAffine(img2, m, (w1, h1), borderValue=(255,255,255))
+
+    #Highlight found points in red:
+    #img1[dst1>0.1*dst1.max()]=[0,0,255]
+    #img2[dst2>0.1*dst2.max()]=[0,0,255]
+
+    #Output the images:
+    cv2.imwrite(align1, img1)
+    #cv2.imwrite("output-img2-harris.jpg", img2)
+    cv2.imwrite(align2,image2Reg)
+    return align1, align2
+    
 def maketmp(temp):
     if (not os.path.isdir(temp)):
         print("We need to make %s directory" % temp)
@@ -183,7 +300,10 @@ def watermark_text(input_image_path,
     photo = Image.open(input_image_path)
     drawing = ImageDraw.Draw(photo)
     red = (255, 0, 0)
-    font = ImageFont.truetype("C:\\Windows\\Fonts\\Calibri.ttf", 30)
+    if platform == "win32":
+        font = ImageFont.truetype("C:\\Windows\\Fonts\\Calibri.ttf", 30)
+    else:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeMono.ttf", 30)
     drawing.text(pos, text, fill=red, font=font)
     photo.save(output_image_path)
 
@@ -233,18 +353,26 @@ def process_batch():
                         print("Name match found")
                         print("New file: ",new_f)
                         print("Old file: ",old_f)
-                        filePath1 = olddir + "\\\\" + old_f
-                        filePath2 = newdir + "\\\\" + new_f
-                        print(filePath1)
+                        if platform == "win32":
+                            filePath1 = olddir + "\\\\" + old_f
+                            filePath2 = newdir + "\\\\" + new_f
+                        else:
+                            filePath1 = olddir + "/" + old_f
+                            filePath2 = newdir + "/" + new_f
+                        #print(filePath1)
                         img1_file = pdf2png(filePath1, tempdir)
                         img2_file = pdf2png(filePath2, tempdir)
                         im1, im2 = Image.open(img2_file), Image.open(img1_file)
                         file_string = os.path.splitext(os.path.basename(new_f))[0] + "-diff.png"
                         if im1.size[0] == im2.size[0] and im1.size[1] == im2.size[1]:
                             print("Drawing sizes match")
-                            dispimg = tempdir + "\\\\" + file_string
+                            if platform == "win32":
+                                dispimg = tempdir + "\\\\" + file_string
+                                waterimg = diffdir + "\\\\" + file_string
+                            else:
+                                dispimg = tempdir + "/" + file_string
+                                waterimg = diffdir + "/" + file_string
                             anaglyph(im1, im2, color2_anaglyph).save(dispimg, quality=90)
-                            waterimg = diffdir + "\\\\" + file_string
                             watermark_text(dispimg,waterimg,"UNCONTROLLED COPY",pos=(0, 0))
                         else:
                             print("Drawing size mismatch.")
@@ -266,16 +394,20 @@ def process_images():
     start = timeit.default_timer()
     img1_file = pdf2png(filePath1, tempdir)
     img2_file = pdf2png(filePath2, tempdir)
-    im1, im2 = Image.open(img2_file), Image.open(img1_file)
+    align1, align2 = alignimage(img1_file, img2_file)
+    #im1, im2 = Image.open(img2_file), Image.open(img1_file)
+    im1, im2 = Image.open(align2), Image.open(align1)
     file_string = os.path.splitext(os.path.basename(filePath1))[0] + "-diff.png"
     if im1.size[0] == im2.size[0] and im1.size[1] == im2.size[1]:
         print("Drawing sizes match")
-        dispimg = diffdir + "\\\\" + file_string
-        print(newdir)
-        print(olddir)
-        print(diffdir)
-        print(dispimg)
+        if platform == "win32":
+            dispimg = diffdir + "\\\\" + file_string
+            waterimg = diffdir + "\\\\" + file_string
+        else:
+            dispimg = diffdir + "/" + file_string
+            waterimg = diffdir + "/" + file_string
         anaglyph(im1, im2, color2_anaglyph).save(dispimg, quality=90)
+        watermark_text(dispimg,waterimg,"UNCONTROLLED COPY",pos=(0, 0))
     else:
         print("Drawing size mismatch.")
         size_check = 1
@@ -303,6 +435,8 @@ def error_msg(s1,s2):
 def Main():
     global v
     root = Tk()
+    root.option_add('*foreground', 'black')
+    root.option_add('*activeForeground', 'white')
     root.wm_title("Choose images")
     app = DiffApp(master=root)
     app.mainloop()
