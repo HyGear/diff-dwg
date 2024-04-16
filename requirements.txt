@@ -1,3 +1,4 @@
-PyMuPDF
+opencv-python
 numpy
 pillow
+PyMuPDF
