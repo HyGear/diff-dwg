@@ -91,6 +91,7 @@ class DiffApp(Frame):
                 return
             elif status_1 == 1 and v.get() == "2":
                 error_msg("Error", "Please select a valid directory.")
+                return
             elif status_1 == 0 and v.get() == "1":
                 filePath1 = tk.askopenfilename(title="Select old drawing")
             elif status_1 == 0 and v.get() == "2":
@@ -109,6 +110,7 @@ class DiffApp(Frame):
                 return
             elif status_2 == 1 and v.get() == "2":
                 error_msg("Error", "Please select a valid directory.")
+                return
             elif status_2 == 0 and v.get() == "1":
                 filePath2 = tk.askopenfilename(title="Select new drawing")
             elif status_2 == 0 and v.get() == "2":
@@ -163,8 +165,8 @@ def pdf2png(pdf,temp):
     yres=2
     mat= fitz.Matrix(xres,yres)
     for page in doc:
-        pix = page.getPixmap(matrix=mat, colorspace="rgb", alpha = False)
-        pix.writePNG(png)
+        pix = page.get_pixmap(matrix=mat, colorspace="rgb", alpha = False)
+        pix.save(png)
     return png
 
 def alignimage(align1,align2):
@@ -295,7 +297,7 @@ def image_to_array(im):
     return numpy.frombuffer(s, numpy.uint8).reshape(len(s)//dim, dim)
 
 def array_to_image(mode, size, a):
-    return Image.frombytes(mode, size, a.reshape(len(a)*len(mode), 1).astype(numpy.uint8).tostring())
+    return Image.frombytes(mode, size, a.reshape(len(a)*len(mode), 1).astype(numpy.uint8).tobytes())
 
 def watermark_text(input_image_path,
                    output_image_path,
@@ -332,8 +334,10 @@ def process_batch():
     newfiles = [n for n in listdir(newdir) if isfile(join(newdir,n))]
     pattern=re.compile('^([a-zA-Z])+')
     # The loop below attempts to match part numbers in the old folder and new folder. This is done
-    # by dropping the first and last character and anything after an underscore. This tends to
-    # find a match for most part numbering schemes.
+    # by dropping the first and last character and anything after an underscore. This is meant to 
+    # match a XXXXXX-XXXXX.pdf numbering convention where the first and last digits are changed
+    # to prototype status and revision level. This logic will need to be made more general to match
+    # other part numbering schemes.
     for old_f in oldfiles:
         if old_f[-3:] == "pdf":
             trim_old=find_char(old_f,"_")
@@ -386,8 +390,11 @@ def process_batch():
                             size_check = 1
                         del im1,im2
                         try:
-                            os.remove(img1_file)
-                            os.remove(img2_file)
+                            if img1_file==img2_file:
+                                os.remove(img1_file)
+                            else:
+                                os.remove(img1_file)
+                                os.remove(img2_file)
                             os.remove(dispimg)
                         except:
                             print("Error while deleting temp files. Please check ", tempdir)
@@ -421,8 +428,11 @@ def process_images():
         print("Drawing size mismatch.")
         size_check = 1
     del im1,im2
-    os.remove(img1_file)
-    os.remove(img2_file)
+    if img1_file == img2_file:
+        os.remove(img1_file)
+    else:
+        os.remove(img1_file)
+        os.remove(img2_file)
     stop = timeit.default_timer()
     print("Run time was", stop - start)
     print("Done")
