@@ -8,10 +8,10 @@ processed.  The output file is a composite of the two input files with deleted p
 in magenta and new pixels highlighted in green. A watermark is also added to the diff drawing
 to designate it as an uncontrolled copy.
 
-The main anaglyph algorithm is taken from the following source:
-Anaglyph Algorithm: https://mail.python.org/pipermail/python-list/2006-May/392738.html
+Unfortunately the original source of the anaglyph algorithm doesn't appear to exist any more. If
+you know where I can give proper credit for this, please let me know.
 
-At the moment, the script is only compatible with Windows. 
+At the moment, the script is only compatible with Windows.
 
 Requirements
 ============
