@@ -327,77 +327,71 @@ def find_char(find_s,find_c):
         trim = trim+1
     return trim
 
+def extract_core_part_number(filename):
+    # Change the regular expression below to match your part number scheme   
+    match = re.match(r'^\d([A-Z0-9]{5}-\d{4})\d(_REV\d+)?\.pdf$', filename)
+    if match:
+        return match.group(1)  # Return the core part number
+    return None
+
 def process_batch():
     global size_check, check
     start = timeit.default_timer()
-    oldfiles = [f for f in listdir(olddir) if isfile(join(olddir,f))]
-    newfiles = [n for n in listdir(newdir) if isfile(join(newdir,n))]
-    pattern=re.compile('^([a-zA-Z])+')
-    # The loop below attempts to match part numbers in the old folder and new folder. This is done
-    # by dropping the first and last character and anything after an underscore. This is meant to 
-    # match a XXXXXX-XXXXX.pdf numbering convention where the first and last digits are changed
-    # to prototype status and revision level. This logic will need to be made more general to match
-    # other part numbering schemes.
-    for old_f in oldfiles:
-        if old_f[-3:] == "pdf":
-            trim_old=find_char(old_f,"_")
-            if trim_old == -1:
-                trim_old = 5
-            if pattern.match(old_f):
-                first_file = old_f[3:trim_old]
-            else:
-                first_file = old_f[1:-trim_old]
-            for new_f in newfiles:
-                if new_f[-3:] == "pdf":
-                    trim_new=find_char(new_f,"_")
-                    if trim_new == -1:
-                        trim_new = 5
-                    if pattern.match(new_f):
-                        second_file = new_f[3:trim_old]
-                    else:
-                        second_file = new_f[1:-trim_new]
-                    if second_file == first_file:
-                        print("Name match found")
-                        print("New file: ",new_f)
-                        print("Old file: ",old_f)
-                        if platform == "win32":
-                            filePath1 = olddir + "\\\\" + old_f
-                            filePath2 = newdir + "\\\\" + new_f
-                        else:
-                            filePath1 = olddir + "/" + old_f
-                            filePath2 = newdir + "/" + new_f
-                        #print(filePath1)
-                        img1_file = pdf2png(filePath1, tempdir)
-                        img2_file = pdf2png(filePath2, tempdir)
-                        if check.get() == 1:
-                            align1, align2 = alignimage(img1_file, img2_file)
-                            im1, im2 = Image.open(align2), Image.open(align1)
-                        else:
-                            im1, im2 = Image.open(img2_file), Image.open(img1_file)                
-                        file_string = os.path.splitext(os.path.basename(new_f))[0] + "-diff.png"
-                        if im1.size[0] == im2.size[0] and im1.size[1] == im2.size[1]:
-                            print("Drawing sizes match")
+    oldfiles = [f for f in listdir(olddir) if isfile(join(olddir, f))]
+    newfiles = [n for n in listdir(newdir) if isfile(join(newdir, n))]
+
+    for old_f in oldfiles:      
+        if old_f.endswith(".pdf"):
+            core_old = extract_core_part_number(old_f.strip())
+            if core_old:
+                for new_f in newfiles:
+                    if new_f.endswith(".pdf"):
+                        core_new = extract_core_part_number(new_f.strip())
+                        if core_new and core_new == core_old:
+                            print("Name match found")
+                            print("New file: ", new_f)
+                            print("Old file: ", old_f)
+                            # Proceed with processing the matched files
+                            # (e.g., convert to PNG, align, compare, etc.)
+                            # Your existing logic for processing matched files goes here
                             if platform == "win32":
-                                dispimg = tempdir + "\\\\" + file_string
-                                waterimg = diffdir + "\\\\" + file_string
+                                filePath1 = olddir + "\\\\" + old_f
+                                filePath2 = newdir + "\\\\" + new_f
                             else:
-                                dispimg = tempdir + "/" + file_string
-                                waterimg = diffdir + "/" + file_string
-                            anaglyph(im1, im2, color2_anaglyph).save(dispimg, quality=90)
-                            watermark_text(dispimg,waterimg,"UNCONTROLLED COPY",pos=(0, 0))
-                        else:
-                            print("Drawing size mismatch.")
-                            size_check = 1
-                        del im1,im2
-                        try:
-                            if img1_file==img2_file:
-                                os.remove(img1_file)
+                                filePath1 = olddir + "/" + old_f
+                                filePath2 = newdir + "/" + new_f
+                            #print(filePath1)
+                            img1_file = pdf2png(filePath1, tempdir)
+                            img2_file = pdf2png(filePath2, tempdir)
+                            if check.get() == 1:
+                                align1, align2 = alignimage(img1_file, img2_file)
+                                im1, im2 = Image.open(align2), Image.open(align1)
                             else:
-                                os.remove(img1_file)
-                                os.remove(img2_file)
-                            os.remove(dispimg)
-                        except:
-                            print("Error while deleting temp files. Please check ", tempdir)
+                                im1, im2 = Image.open(img2_file), Image.open(img1_file)                
+                            file_string = os.path.splitext(os.path.basename(new_f))[0] + "-diff.png"
+                            if im1.size[0] == im2.size[0] and im1.size[1] == im2.size[1]:
+                                print("Drawing sizes match")
+                                if platform == "win32":
+                                    dispimg = tempdir + "\\\\" + file_string
+                                    waterimg = diffdir + "\\\\" + file_string
+                                else:
+                                    dispimg = tempdir + "/" + file_string
+                                    waterimg = diffdir + "/" + file_string
+                                anaglyph(im1, im2, color2_anaglyph).save(dispimg, quality=90)
+                                watermark_text(dispimg,waterimg,"UNCONTROLLED COPY",pos=(0, 0))
+                            else:
+                                print("Drawing size mismatch.")
+                                size_check = 1
+                            del im1,im2
+                            try:
+                                if img1_file==img2_file:
+                                    os.remove(img1_file)
+                                else:
+                                    os.remove(img1_file)
+                                    os.remove(img2_file)
+                                os.remove(dispimg)
+                            except:
+                                print("Error while deleting temp files. Please check ", tempdir)
 
     stop = timeit.default_timer()
     print("Run time was", stop - start)
